@@ -11,11 +11,14 @@ if [[ -z "${SLURM_JOB_ID}" || -z "${SLURM_CPUS_PER_TASK}" || -z "${SLURM_MEM_PER
   exit 1
 fi
 
-################################################################################
-# Set up and launch standalone Spark cluster
-################################################################################
-
+# load the spark module
+module purge
 module load apps/spark/3.4.4
+
+# initialisation message
+echo
+echo "***** Spark cluster is starting *****"
+echo
 
 # set up standalone cluster daemon properties. The spark master and spark worker
 # processes will run with the resources defined here.
@@ -83,10 +86,6 @@ spark.authenticate.secret          ${SPARK_SECRET}
 # is not protected by authentication which means any user
 # with network access could terminate jobs if this was enabled.
 spark.ui.killEnabled               false
-
-# Add Basic Authentication to Spark Cluster Web UI
-#spark.ui.filters edu.umich.arc.jonpot.BasicAuthenticationFilter
-#spark.edu.umich.arc.jonpot.BasicAuthenticationFilter.params username=admin,password=${SPARK_WEBUI_SECRET}
 
 # Enable Spark application web UI (does not affect Spark cluster web UI).
 spark.ui.enabled                   true
