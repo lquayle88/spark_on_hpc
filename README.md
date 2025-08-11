@@ -2,10 +2,10 @@
 
 **Run Apache Spark in standalone mode on SLURM-managed HPC clusters with Spark Connect for R via [`sparklyr`](https://spark.posit.co/).**
 
-This repository contains two scripts for deploying a multi-node Spark cluster on an HPC system and connecting to it from your local R environment:
+This repository contains scripts and documentation for deploying a multi-node Spark cluster on an HPC system and connecting to it from your local R environment:
 
-* **`spark_cluster_launcher.sh`** — A SLURM batch script to allocate HPC resources, launch the cluster, and print SSH port forwarding instructions for Spark Connect and the Spark Master Web UI.
-* **`spark-start`** — A helper script to configure Spark, start the Master and workers across allocated nodes, and run a Spark Connect server.
+* **`spark_cluster_launcher.sh`**: A SLURM batch script to allocate HPC resources, launch the cluster, and print SSH port forwarding instructions for Spark Connect and the Spark Web UI.
+* **`spark-start`**: A helper script to configure Spark, start the Master and workers across allocated nodes, and run a Spark Connect server.
 
 ## Features
 
@@ -21,7 +21,7 @@ This repository contains two scripts for deploying a multi-node Spark cluster on
 * SLURM-managed HPC cluster
 * SSH access to the HPC system
 * Spark 3.4+ installed and available as a module (tested with 3.4.4)
-* `sparklyr` (≥ 1.8.4) and `pysparklyr` (≥ 0.1.8) installed locally in R
+* `sparklyr` (≥ 1.8.4) and `pysparklyr` (≥ 0.1.3) installed locally in R
 
 ## Installation
 
@@ -70,13 +70,13 @@ sbatch spark_cluster_launcher.sh
 
 ```bash
 ssh -N \
-  -L 15002:host:15002 \
-  -L 8080:host:8080 \
-  -L 4040:host:4040 \
-  username@hpc.cluster.domain
+  -L 15002:<spark_master_hostname>:15002 \
+  -L 8080:<spark_master_hostname>:8080 \
+  -L 4040:<spark_master_hostname>:4040 \
+  username@cluster.domain
 ```
 
-*(Replace `host`, `username` and `hpc.cluster.domain` with your HPC credentials)*
+*(Note: Ensure `spark_master_hostname`, `username` `cluster` and `domain` are replaced with your HPC credentials)*
 
 Then open:
 
@@ -138,4 +138,4 @@ scancel <jobid>
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
+MIT License - please see [LICENSE](LICENSE) for details.
