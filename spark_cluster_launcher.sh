@@ -1,11 +1,11 @@
 #!/bin/bash
 
 #SBATCH --job-name=spark-cluster
-#SBATCH --nodes=3               # node count
+#SBATCH --nodes=1               # node count
 #SBATCH --ntasks-per-node=1     # keep as 1
-#SBATCH --cpus-per-task=3       # change as needed
-#SBATCH --mem=8G                # memory per node
-#SBATCH --time=24:00:00         # wall-clock time
+#SBATCH --cpus-per-task=60      # change as needed
+#SBATCH --mem=960G              # memory per node
+#SBATCH --time=96:00:00         # wall-clock time
 
 # start the Spark standalone cluster
 spark-start
