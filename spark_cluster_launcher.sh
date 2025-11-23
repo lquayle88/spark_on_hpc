@@ -77,7 +77,17 @@ cleanup() {
     done
   done
 
+  # clean ood job directory
   rm -rf "$HOME/.spark-local/$SLURM_JOB_ID" || true
+
+  # remove per-job scratch (Spark local dirs), best effort
+  if [ -n "$SCRATCH" ]; then
+    rm -rf "$SCRATCH" || true
+  fi
+
+  # also clean based on job id in case this shell lost $SCRATCH
+  rm -rf "/users/${USER}/.spark-scratch/${SLURM_JOB_ID}" || true
+
 }
 trap cleanup SIGTERM SIGINT EXIT
 
