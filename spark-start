@@ -15,11 +15,6 @@ fi
 module purge
 module load apps/spark/3.4.4
 
-# initialisation message
-echo
-echo "***** Spark cluster is starting *****"
-echo
-
 # set up standalone cluster daemon properties. The spark master and spark worker
 # processes will run with the resources defined here.
 export SPARK_DAEMON_CORES=1
