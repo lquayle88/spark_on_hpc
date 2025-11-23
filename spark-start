@@ -39,14 +39,36 @@ export SPARK_OVERHEAD_MEMORY=${SPARK_DRIVER_MEMORY}
 
 # set up local scratch directories on all the nodes with
 # strict permissions for local settings.
-# TODO: Can this tmp dir be combined with XDG_RUNTIME_DIR above?
-export SCRATCH="$(mktemp -d ${USER}.XXXXXXXXXX -p /tmp)"
-echo "Writing spark tmp files to slurm compute nodes: ${SCRATCH}"
-srun --label --export=ALL mkdir -p -m 700 \
+
+# choose large node-local scratch
+# if [ -n "${SLURM_TMPDIR:-}" ]; then
+#   SCRATCH_ROOT="${SLURM_TMPDIR}"
+# else
+#   SCRATCH_ROOT="/tmp/users/${USER}/${SLURM_JOB_ID}"
+# fi
+
+# export SCRATCH="${SCRATCH_ROOT}"
+# echo "Writing spark tmp files to node-local scratch under: ${SCRATCH}"
+
+# srun --label --export=ALL mkdir -p -m 700 \
+#     "${SCRATCH}/local"  \
+#     "${SCRATCH}/tmp"    \
+#     "${SCRATCH}/work"   \
+#     || fail "Could not set up node local directories"
+
+# if no large node-local use a private dir in /users for scratch to avoid ENOSPC.
+SCRATCH_ROOT="/users/${USER}/.spark-scratch/${SLURM_JOB_ID}"
+export SCRATCH="${SCRATCH_ROOT}"
+echo "Writing spark tmp files to: ${SCRATCH}"
+
+# create dirs (only needs to exist; NFS path visible on all nodes)
+mkdir -p -m 700 \
     "${SCRATCH}/local" \
-    "${SCRATCH}/tmp"   \
-    "${SCRATCH}/work"  \
-    || fail "Could not set up node local directories"
+    "${SCRATCH}/tmp"    \
+    "${SCRATCH}/work"   || {
+  echo "Error: Could not set up Spark scratch directories at ${SCRATCH}"
+  exit 1
+}
 
 # create spark directory structure in ood job directory for global settings.
 export OOD_JOB_HOME="${HOME}/.spark-local/${SLURM_JOB_ID}"
