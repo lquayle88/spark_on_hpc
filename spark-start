@@ -210,6 +210,66 @@ srun --label --export=ALL --wait=0 --cpus-per-task=${SLURM_CPUS_PER_TASK} "${SCR
 echo "WORKERS_PID=${WORKERS_PID}"
 echo "export WORKERS_PID=${WORKERS_PID}" >> ${SPARK_CONF_DIR}/spark-env.sh
 
+# derive executor/driver sizing before starting connect server
+# tunables (override in sbatch if desired)
+: "${EXE_CORES:=7}"                    # cores per executor (6–10 works well)
+: "${EXE_HEAP_GIB:=100}"               # executor JVM heap GiB
+: "${EXE_OVERHEAD_FACTOR:=0.12}"       # memoryOverhead fraction (raise to 0.20–0.30 for PySpark-heavy)
+: "${DRIVER_MEM_GIB:=8}"               # driver heap GiB
+: "${SQL_SHUFFLE_PARTS:=200}"          # starting shuffle partitions; AQE will coalesce
+: "${BCAST_THRESHOLD_MB:=64}"          # auto-broadcast threshold MB
+
+# per-node capacity from Slurm (already set earlier)
+CORES_WORKER="${SPARK_WORKER_CORES}"
+MEM_GIB_WORKER="${SPARK_WORKER_MEMORY}"
+CORES_DRIVER_REM="${SPARK_WORKER_CORES_REMAINING}"
+MEM_GIB_DRIVER_REM="${SPARK_WORKER_MEMORY_REMAINING}"
+
+# compute per-executor container size (heap + overhead), GiB (ceil)
+OVER_PCT=$(awk -v f="$EXE_OVERHEAD_FACTOR" 'BEGIN{printf "%d", (f*100)}')
+EXE_CONTAINER_GIB=$(( (EXE_HEAP_GIB * (100 + OVER_PCT ) + 99) / 100 ))
+
+# executors that fit on a full worker node (by cores & by memory)
+EXE_PER_FULL_NODE_BY_CORES=$(( CORES_WORKER / EXE_CORES ))
+EXE_PER_FULL_NODE_BY_MEM=$(( MEM_GIB_WORKER / EXE_CONTAINER_GIB ))
+EXE_PER_FULL_NODE=$(( EXE_PER_FULL_NODE_BY_CORES < EXE_PER_FULL_NODE_BY_MEM ? EXE_PER_FULL_NODE_BY_CORES : EXE_PER_FULL_NODE_BY_MEM ))
+[ "$EXE_PER_FULL_NODE" -lt 1 ] && EXE_PER_FULL_NODE=1
+
+# executors that fit on the driver node (reduced capacity)
+EXE_ON_DRIVER_BY_CORES=$(( CORES_DRIVER_REM / EXE_CORES ))
+EXE_ON_DRIVER_BY_MEM=$(( MEM_GIB_DRIVER_REM / EXE_CONTAINER_GIB ))
+EXE_ON_DRIVER=$(( EXE_ON_DRIVER_BY_CORES < EXE_ON_DRIVER_BY_MEM ? EXE_ON_DRIVER_BY_CORES : EXE_ON_DRIVER_BY_MEM ))
+[ "$EXE_ON_DRIVER" -lt 1 ] && EXE_ON_DRIVER=1
+
+# totals across nodes
+NODES=$SLURM_JOB_NUM_NODES
+if [ "$NODES" -gt 1 ]; then
+  TOTAL_EXECUTORS=$(( EXE_ON_DRIVER + (NODES - 1) * EXE_PER_FULL_NODE ))
+else
+  TOTAL_EXECUTORS=$EXE_ON_DRIVER
+fi
+TOTAL_EXECUTOR_CORES=$(( TOTAL_EXECUTORS * EXE_CORES ))
+
+# persist defaults so all clients inherit them
+cat >> "${SPARK_CONF_DIR}/spark-defaults.conf" <<EOF
+# --- resource sizing injected by spark-start (multi-executor) ---
+spark.executor.cores                 ${EXE_CORES}
+spark.executor.memory                ${EXE_HEAP_GIB}g
+spark.executor.memoryOverheadFactor  ${EXE_OVERHEAD_FACTOR}
+spark.cores.max                      ${TOTAL_EXECUTOR_CORES}
+spark.driver.memory                  ${DRIVER_MEM_GIB}g
+
+# --- SQL & shuffle tuning defaults ---
+spark.sql.adaptive.enabled           true
+spark.sql.adaptive.skewJoin.enabled  true
+spark.sql.shuffle.partitions         ${SQL_SHUFFLE_PARTS}
+spark.sql.autoBroadcastJoinThreshold ${BCAST_THRESHOLD_MB}m
+EOF
+
+echo "Planned executors: ${TOTAL_EXECUTORS} total (${EXE_ON_DRIVER} on driver node, ${EXE_PER_FULL_NODE} per other node)"
+echo "Per-executor: ${EXE_CORES} cores, ${EXE_HEAP_GIB}g heap, ~$((${EXE_CONTAINER_GIB}-${EXE_HEAP_GIB}))g overhead"
+echo "spark.cores.max: ${TOTAL_EXECUTOR_CORES}"
+
 # start Spark Connect server (Spark 3.4.x requires the spark-connect package)
 # bind to 0.0.0.0 so the SSH tunnel can reach it; keep the port fixed at 15002.
 # advertise a hostname resolvable inside the cluster for driver↔executor traffic.
