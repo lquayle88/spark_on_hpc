@@ -210,11 +210,10 @@ srun --label --export=ALL --wait=0 --cpus-per-task=${SLURM_CPUS_PER_TASK} "${SCR
 echo "WORKERS_PID=${WORKERS_PID}"
 echo "export WORKERS_PID=${WORKERS_PID}" >> ${SPARK_CONF_DIR}/spark-env.sh
 
-# derive executor/driver sizing before starting connect server
-# tunables (override in sbatch if desired)
-: "${EXE_CORES:=7}"                    # cores per executor (6–10 works well)
-: "${EXE_HEAP_GIB:=100}"               # executor JVM heap GiB
-: "${EXE_OVERHEAD_FACTOR:=0.12}"       # memoryOverhead fraction (raise to 0.20–0.30 for PySpark-heavy)
+# derive executor/driver sizing before starting connect server - tunables (override in sbatch using export if desired)
+: "${EXE_CORES:=6}"                    # cores per executor (6–10 works well)
+: "${EXE_HEAP_GIB:=96}"                # executor JVM heap GiB
+: "${EXE_OVERHEAD_FACTOR:=0.10}"       # memoryOverhead fraction (raise to 0.20–0.30 for heavy tasks)
 : "${DRIVER_MEM_GIB:=8}"               # driver heap GiB
 : "${SQL_SHUFFLE_PARTS:=200}"          # starting shuffle partitions; AQE will coalesce
 : "${BCAST_THRESHOLD_MB:=64}"          # auto-broadcast threshold MB
